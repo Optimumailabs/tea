@@ -1,0 +1,1 @@
+**Token Efficiency Analyzer (TEA)** — a measurement and optimization layer for LLM prompts. By scoring token efficiency and context utilization, TEA empowers teams to audit, compress, and optimize every prompt.
