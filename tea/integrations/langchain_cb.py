@@ -67,12 +67,17 @@ def optimize_lc_messages(
     model_name: str = "gpt-4o",
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     **opt_kwargs: Any,
 ) -> tuple[list, OptimizeResult]:
-    """Optimise a list of LangChain messages. Returns (new_messages, report)."""
+    """Optimise a list of LangChain messages. Returns (new_messages, report).
+    Passing ``log`` logs the call tagged with source "langchain"."""
+    from .. import optimize as _optimize
+
     dicts = _lc_to_dicts(messages)
-    result = optimize_messages(
-        dicts, model=model_name, enable=enable, compressor=compressor, **opt_kwargs
+    result = _optimize(
+        dicts, model=model_name, enable=enable, compressor=compressor,
+        log=log, source="langchain", **opt_kwargs
     )
     new_messages = _apply_to_lc(messages, result.optimized)
     return new_messages, result
@@ -83,6 +88,7 @@ def TEAOptimizer(
     model_name: str = "gpt-4o",
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     on_report=None,
     **opt_kwargs: Any,
 ):
@@ -102,7 +108,7 @@ def TEAOptimizer(
     def _run(messages):
         new_messages, report = optimize_lc_messages(
             messages, model_name=model_name, enable=enable,
-            compressor=compressor, **opt_kwargs
+            compressor=compressor, log=log, **opt_kwargs
         )
         if on_report is not None:
             on_report(report)

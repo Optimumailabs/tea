@@ -62,6 +62,12 @@ python product/skill/scripts/optimize.py \
 # Optimise a chat-messages JSON file instead of a raw prompt.
 python product/skill/scripts/optimize.py \
     --messages-file /tmp/chat.json --model gpt-4o
+
+# Log every optimised prompt to a directory (original, optimised, tokens
+# saved, memory, running ledger). Add --log with no value for the default dir,
+# or --log /path/to/dir for a specific one.
+python product/skill/scripts/optimize.py \
+    --prompt-file /tmp/prompt.txt --query "..." --log /tmp/tea_logs
 ```
 
 The script prints a JSON report (`tokens_before`, `tokens_after`,
@@ -69,6 +75,12 @@ The script prints a JSON report (`tokens_before`, `tokens_after`,
 optimised prompt to `--out-file` if given. Report the reduction and which
 transforms fired. If `exact_tokenizer` is false, mention that token counts are
 approximate because tiktoken is not installed.
+
+When `--log` is set, three files appear in the log directory:
+`tea_prompts.jsonl` (one record per prompt), `tea_prompts.log` (human
+readable), and `tea_ledger.json` (running totals). Each record holds the
+original and optimised prompt, tokens saved, dollars saved, process memory,
+and the cumulative ledger.
 
 What each transform does:
 

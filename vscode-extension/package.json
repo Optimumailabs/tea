@@ -1,0 +1,60 @@
+{
+  "name": "token-efficiency-agent",
+  "displayName": "Token Efficiency Agent",
+  "description": "Optimise the selected prompt text and show tokens saved. Wraps the TEA Python package.",
+  "version": "0.2.0",
+  "publisher": "optimum-ai",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other", "Machine Learning"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Optimum-labs/Token-Efficiency-Agent"
+  },
+  "license": "MIT",
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "tea.optimizeSelection",
+        "title": "TEA: Optimise selected prompt"
+      },
+      {
+        "command": "tea.scoreSelection",
+        "title": "TEA: Score selected prompt"
+      }
+    ],
+    "configuration": {
+      "title": "Token Efficiency Agent",
+      "properties": {
+        "tea.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python interpreter that has the `tea` package installed."
+        },
+        "tea.model": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "Model id used for token counting."
+        },
+        "tea.aggressive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also drop low-relevance context (needs a query in the first line)."
+        },
+        "tea.logDir": {
+          "type": "string",
+          "default": "",
+          "description": "If set, every optimise call is logged to this directory."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'no build step; plain JS'"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.21.0"
+  }
+}

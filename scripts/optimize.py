@@ -50,6 +50,11 @@ def parse_args(argv=None):
                    help="Write the optimised prompt here. Defaults to stdout via the JSON.")
     p.add_argument("--json-only", action="store_true",
                    help="Print only the JSON report, no human summary.")
+    p.add_argument("--log", nargs="?", const=True, default=None,
+                   help="Log this prompt. With no value, uses the default log "
+                        "dir (./tea_logs or $TEA_LOG_DIR). With a value, logs to "
+                        "that directory. Writes tea_prompts.jsonl, tea_prompts.log, "
+                        "and tea_ledger.json.")
     return p.parse_args(argv)
 
 
@@ -60,12 +65,15 @@ def main(argv=None) -> int:
     # here. Callers who want compression use the package API and pass a
     # compressor callable; see the SKILL.md and README.
 
+    log_arg = args.log  # True, a dir string, or None
+
     if args.prompt_file is not None:
         if not args.prompt_file.exists():
             print(json.dumps({"error": f"prompt file not found: {args.prompt_file}"}))
             return 2
         prompt = args.prompt_file.read_text(encoding="utf-8")
-        result = tea.optimize(prompt, query=args.query, model=args.model, enable=enable)
+        result = tea.optimize(prompt, query=args.query, model=args.model,
+                              enable=enable, log=log_arg, source="cli")
         optimized_text = result.optimized
     else:
         if not args.messages_file.exists():
@@ -76,7 +84,8 @@ def main(argv=None) -> int:
         except json.JSONDecodeError as e:
             print(json.dumps({"error": f"messages file is not valid JSON: {e}"}))
             return 2
-        result = tea.optimize(messages, model=args.model, enable=enable)
+        result = tea.optimize(messages, model=args.model, enable=enable,
+                              log=log_arg, source="cli")
         optimized_text = json.dumps(result.optimized, indent=2)
 
     if args.out_file is not None:

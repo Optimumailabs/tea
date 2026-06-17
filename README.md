@@ -40,13 +40,28 @@ how many tokens it saved.
 
 ## Install
 
+Pick whichever fits. The package has zero required dependencies; the extras are
+optional.
+
 ```bash
-pip install tiktoken        # optional, for exact token counts
+# From PyPI (once published)
+pip install token-efficiency-agent
+
+# Straight from GitHub, no release needed
+pip install "git+https://github.com/Optimum-labs/Token-Efficiency-Agent.git"
+
+# From a GitHub Release wheel
+pip install https://github.com/Optimum-labs/Token-Efficiency-Agent/releases/download/v0.2.0/token_efficiency_agent-0.2.0-py3-none-any.whl
+
+# Optional extras
+pip install "token-efficiency-agent[all]"     # tiktoken (exact tokens) + psutil (RSS memory)
 ```
 
-Then put this repository on your `PYTHONPATH`, or copy the `tea/` package into
-your project. Importing `tea` pulls in no framework; each adapter imports its
-own framework only when you use it.
+VS Code users can also install the editor extension in
+[`vscode-extension/`](vscode-extension/), which wraps the package.
+
+Importing `tea` pulls in no framework; each adapter imports its own framework
+only when you use it.
 
 ---
 
@@ -72,6 +87,62 @@ print(report["score"]["S"])
 Every call returns an `OptimizeResult` with `tokens_before`, `tokens_after`,
 `tokens_saved`, `reduction_pct`, the list of `transforms` that fired, and any
 `notes`.
+
+---
+
+## Logging
+
+Turn on per-prompt logging and TEA appends a structured record for every
+optimise call: the original prompt, the optimised prompt, tokens before and
+after, tokens saved, reduction percent, dollars saved, which transforms fired,
+process memory, and a running savings ledger.
+
+```python
+import tea
+tea.enable_logging("tea_logs")          # or set the TEA_LOG_DIR env var
+
+tea.optimize(prompt, query="...")        # logged automatically from now on
+```
+
+Per-call control without a global logger:
+
+```python
+tea.optimize(prompt, query="...", log=True)            # default dir
+tea.optimize(prompt, query="...", log="/custom/dir")   # one-off dir
+tea.optimize(prompt, query="...", log=False)           # never log this call
+```
+
+Three files are written in the log directory:
+
+| File | Contents |
+|---|---|
+| `tea_prompts.jsonl` | One JSON record per call. Machine-readable. |
+| `tea_prompts.log` | The same records formatted for humans. |
+| `tea_ledger.json` | Running totals: calls, tokens saved, dollars saved. |
+
+A JSONL record looks like:
+
+```json
+{
+  "ts": "2026-06-17T20:03:29.787+00:00",
+  "source": "openai",
+  "model": "gpt-4o",
+  "tokens_before": 6200, "tokens_after": 2800,
+  "tokens_saved": 3400, "reduction_pct": 54.8,
+  "usd_saved": 0.0085,
+  "transforms": [{"name": "drop_context", "saved": 3400, "note": "..."}],
+  "memory": {"rss_bytes": 84213760, "peak_kib": 512.4},
+  "ledger": {"calls": 12, "tokens_saved": 41000, "usd_saved": 0.102},
+  "original_prompt": "...", "optimized_prompt": "..."
+}
+```
+
+Logging is off by default, never raises into your call path, and is
+thread-safe. The `source` field records where the call came from (`api`,
+`openai`, `anthropic`, `langchain`, `crewai`, `autogen`, `cli`).
+
+Every framework adapter and the CLI accept the same `log=` argument, so the
+log captures prompts no matter where they enter TEA.
 
 ---
 
@@ -197,8 +268,9 @@ errs toward keeping a chunk rather than dropping a useful one.
 ## Testing
 
 ```bash
-python -m tea._selftest      # 14 functional checks
-python -m tea._edgetest      # 20 edge-case checks
+python -m tea._selftest      # core functional checks
+python -m tea._edgetest      # edge-case checks (inputs, pipeline, concurrency)
+python -m tea._logtest       # logging checks
 ```
 
 ---
@@ -207,18 +279,33 @@ python -m tea._edgetest      # 20 edge-case checks
 
 ```
 .
+├── pyproject.toml               pip-installable package metadata + console scripts
 ├── SKILL.md                     Claude Code skill manifest
 ├── README.md                    this file
+├── LICENSE                      MIT
+├── .github/workflows/
+│   └── publish.yml              build, test, attach wheel to release, publish to PyPI
+├── vscode-extension/            VS Code editor extension (wraps the package)
 ├── scripts/
-│   ├── score.py                 measurement CLI
-│   └── optimize.py              optimisation CLI
+│   ├── score.py                 measurement CLI (repo-local, used by the skill)
+│   └── optimize.py              optimisation CLI (repo-local, used by the skill)
 └── tea/                         the importable package
-    ├── __init__.py              public API: optimize(), score()
+    ├── __init__.py              public API: optimize(), score(), enable_logging()
     ├── optimizer.py             deterministic transforms + LLM hook
     ├── tokens.py                token counting and cost
+    ├── logbook.py               per-prompt logging, memory + savings ledger
+    ├── cli.py                   console-script entry points (tea-optimize, tea-score)
     ├── _selftest.py             functional self-test
     ├── _edgetest.py             edge-case test
+    ├── _logtest.py              logging test
     └── integrations/            openai, anthropic, langchain, crewai, autogen
+```
+
+After `pip install`, two commands are on your PATH:
+
+```bash
+tea-optimize --prompt-file prompt.txt --query "..." --aggressive --log
+tea-score    --prompt-file prompt.txt --query "..." --model gpt-4o
 ```
 
 ---

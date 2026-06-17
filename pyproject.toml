@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "token-efficiency-agent"
+version = "0.2.0"
+description = "Measure and cut wasted tokens in LLM prompts. Deterministic transforms plus an optional LLM compressor, with adapters for OpenAI, Anthropic, LangChain, CrewAI, and AutoGen."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Optimum AI" }]
+keywords = ["llm", "tokens", "prompt", "optimization", "cost", "openai", "anthropic", "langchain", "crewai", "autogen"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Intended Audience :: Developers",
+]
+
+# Zero hard runtime dependencies. The package works on the standard library
+# alone. tiktoken (exact token counts) and psutil (RSS memory) are optional.
+dependencies = []
+
+[project.optional-dependencies]
+tokenizer = ["tiktoken>=0.5"]
+memory = ["psutil>=5.9"]
+all = ["tiktoken>=0.5", "psutil>=5.9"]
+dev = ["pytest>=7", "tiktoken>=0.5", "psutil>=5.9"]
+
+[project.urls]
+Homepage = "https://github.com/Optimum-labs/Token-Efficiency-Agent"
+Repository = "https://github.com/Optimum-labs/Token-Efficiency-Agent"
+
+[project.scripts]
+tea-optimize = "tea.cli:optimize_main"
+tea-score = "tea.cli:score_main"
+
+[tool.setuptools]
+packages = ["tea", "tea.integrations"]
+
+[tool.setuptools.package-data]
+tea = ["py.typed"]

@@ -140,6 +140,97 @@ def main() -> int:
     ok &= check("dedupe+drop keeps relevant, drops physics",
                 "cats" in r.optimized.lower() and "gluons" not in r.optimized.lower())
 
+    # --- Additional hard inputs ------------------------------------------
+    # very long single line, no sentence punctuation
+    longline = "word " * 5000
+    r = optimize_text(longline, model="gpt-4o", enable={"whitespace", "dedupe"})
+    ok &= check("very long single line: no crash", r.tokens_after > 0)
+
+    # prompt that is only a code block (must be preserved, fences intact)
+    onlycode = "```python\nx = 1\n\n\ny = 2\n```"
+    r = optimize_text(onlycode, model="gpt-4o", enable={"whitespace", "dedupe"})
+    ok &= check("code-only prompt: fences preserved", r.optimized.count("```") == 2)
+    ok &= check("code-only prompt: code intact", "x = 1" in r.optimized and "y = 2" in r.optimized)
+
+    # message content that is an int or None (malformed but must not crash)
+    weird = [
+        {"role": "system", "content": None},
+        {"role": "user", "content": 12345},
+        {"role": "user", "content": "Real question here."},
+    ]
+    try:
+        r = optimize_messages(weird, model="gpt-4o")
+        ok &= check("non-string message content: no crash", len(r.optimized) == 3)
+    except Exception as e:
+        ok &= check(f"non-string message content: no crash (raised {type(e).__name__})", False)
+
+    # deeply nested list-of-parts with mixed dict and str parts
+    nested = [
+        {"role": "system", "content": [
+            {"type": "text", "text": "Be brief. Be brief."},
+            "loose string part",
+            {"type": "image_url", "image_url": {"url": "http://x"}},
+        ]},
+        {"role": "user", "content": "Describe it."},
+    ]
+    try:
+        r = optimize_messages(nested, model="gpt-4o", enable={"dedupe"})
+        ok &= check("nested mixed parts: no crash", len(r.optimized) == 2)
+    except Exception as e:
+        ok &= check(f"nested mixed parts: no crash (raised {type(e).__name__})", False)
+
+    # mixed-language repeated content dedupes correctly
+    mixed = "日本語のテキストです。\n\n日本語のテキストです。\n\nDifferent English content."
+    r = optimize_text(mixed, model="gpt-4o", enable={"dedupe"})
+    ok &= check("mixed-language dedupe", r.tokens_after < r.tokens_before)
+    ok &= check("mixed-language keeps English", "English" in r.optimized)
+
+    # query longer than the context (short context, long question)
+    r = optimize_text(
+        "Cats purr.", query="Tell me everything about the behaviour of domestic cats",
+        context="Cats purr.", model="gpt-4o", enable={"drop_context"}, keep_threshold=0.05,
+    )
+    ok &= check("long query, short context: kept", "Cats purr" in r.optimized)
+
+    # enable set is empty: nothing changes
+    r = optimize_text("a\n\na\n\nb", model="gpt-4o", enable=set())
+    ok &= check("empty enable set: no-op", r.tokens_after == r.tokens_before)
+
+    # unknown transform name in enable: ignored, no crash
+    r = optimize_text("a\n\na", model="gpt-4o", enable={"nonexistent_transform"})
+    ok &= check("unknown transform name: ignored", r.tokens_after <= r.tokens_before)
+
+    # whitespace transform must not corrupt a markdown table
+    table = "| a | b |\n|---|---|\n| 1 | 2 |\n\n\n| c | d |\n|---|---|\n| 3 | 4 |"
+    r = optimize_text(table, model="gpt-4o", enable={"whitespace"})
+    ok &= check("markdown table survives whitespace", "| a | b |" in r.optimized and "| c | d |" in r.optimized)
+
+    # concurrency: many threads logging to one logger must not corrupt JSONL
+    import json as _json
+    import tempfile as _tf
+    import threading as _th
+    import shutil as _sh
+    from pathlib import Path as _P
+    from tea.logbook import TEALogger as _TL
+    d = _P(_tf.mkdtemp(prefix="tea_conc_"))
+    try:
+        lg = _TL(str(d))
+        def worker(n):
+            for _ in range(10):
+                rr = optimize_text(f"Line {n}. Line {n}.\n\nUnique {n} content here.",
+                                   query=f"unique {n}", enable={"dedupe"})
+                lg.record(rr, source="thread")
+        threads = [_th.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads: t.start()
+        for t in threads: t.join()
+        lines = (d / "tea_prompts.jsonl").read_text(encoding="utf-8").strip().splitlines()
+        all_valid = all(_json.loads(ln) for ln in lines)
+        ok &= check("concurrent logging: 80 valid JSONL lines",
+                    len(lines) == 80 and all_valid)
+        ok &= check("concurrent ledger consistent", lg.ledger["calls"] == 80)
+    finally:
+        _sh.rmtree(d, ignore_errors=True)
+
     print()
     print("ALL EDGE CASES PASS" if ok else "SOME EDGE CASES FAILED")
     return 0 if ok else 1

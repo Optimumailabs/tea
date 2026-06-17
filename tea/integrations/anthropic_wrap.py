@@ -32,12 +32,14 @@ def optimize_anthropic_kwargs(
     *,
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     **opt_kwargs: Any,
 ) -> tuple[dict, Optional[OptimizeResult]]:
     """Return a copy of ``kwargs`` with optimised ``system`` and ``messages``.
 
     The combined report's token counts cover both the system prompt and the
     messages. Returns the kwargs unchanged and None if there is nothing to do.
+    Passing ``log`` logs the merged result tagged with source "anthropic".
     """
     model = kwargs.get("model", "claude-sonnet-4-6")
     messages = kwargs.get("messages") or []
@@ -74,6 +76,16 @@ def optimize_anthropic_kwargs(
 
     # Merge the reports into one for the caller.
     merged = _merge_reports(reports, model)
+
+    # Log the merged result if logging was requested.
+    from ..logbook import resolve_logger
+    logger = resolve_logger(log)
+    if logger is not None:
+        try:
+            logger.record(merged, query=query or None, source="anthropic")
+        except Exception:
+            pass
+
     return new_kwargs, merged
 
 
@@ -82,6 +94,7 @@ def wrap_anthropic(
     *,
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     on_report=None,
     **opt_kwargs: Any,
 ) -> Any:
@@ -91,7 +104,7 @@ def wrap_anthropic(
 
     def patched_create(*args, **kwargs):
         kwargs, report = optimize_anthropic_kwargs(
-            kwargs, enable=enable, compressor=compressor, **opt_kwargs
+            kwargs, enable=enable, compressor=compressor, log=log, **opt_kwargs
         )
         if report is not None and on_report is not None:
             on_report(report)
@@ -119,8 +132,23 @@ def _merge_reports(reports: list[OptimizeResult], model: str) -> OptimizeResult:
     after = sum(r.tokens_after for r in reports)
     transforms = [t for r in reports for t in r.transforms]
     notes = sorted({n for r in reports for n in r.notes})
+    # Carry combined text so a log record shows the real before/after content.
+    orig = "\n\n".join(_as_text(r.original) for r in reports)
+    opt = "\n\n".join(_as_text(r.optimized) for r in reports)
     return _R(
-        original=None, optimized=None, model=model,
+        original=orig, optimized=opt, model=model,
         tokens_before=before, tokens_after=after,
         transforms=transforms, notes=notes,
     )
+
+
+def _as_text(obj) -> str:
+    if isinstance(obj, str):
+        return obj
+    if isinstance(obj, list):
+        return "\n".join(
+            (m.get("content", "") if isinstance(m.get("content"), str)
+             else _join_parts(m.get("content", "")))
+            for m in obj if isinstance(m, dict)
+        )
+    return "" if obj is None else str(obj)

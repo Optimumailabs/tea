@@ -35,18 +35,23 @@ def optimize_openai_kwargs(
     *,
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     **opt_kwargs: Any,
 ) -> tuple[dict, Optional[OptimizeResult]]:
     """Return a copy of ``kwargs`` with optimised ``messages`` plus the report.
 
     If there are no messages, returns the kwargs unchanged and a None report.
+    Passing ``log`` enables per-prompt logging tagged with source "openai".
     """
+    from .. import optimize as _optimize
+
     messages = kwargs.get("messages")
     if not messages:
         return kwargs, None
     model = kwargs.get("model", "gpt-4o")
-    result = optimize_messages(
-        messages, model=model, enable=enable, compressor=compressor, **opt_kwargs
+    result = _optimize(
+        messages, model=model, enable=enable, compressor=compressor,
+        log=log, source="openai", **opt_kwargs
     )
     new_kwargs = dict(kwargs)
     new_kwargs["messages"] = result.optimized
@@ -58,6 +63,7 @@ def wrap_openai(
     *,
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     on_report=None,
     **opt_kwargs: Any,
 ) -> Any:
@@ -72,7 +78,7 @@ def wrap_openai(
 
     def patched_create(*args, **kwargs):
         kwargs, report = optimize_openai_kwargs(
-            kwargs, enable=enable, compressor=compressor, **opt_kwargs
+            kwargs, enable=enable, compressor=compressor, log=log, **opt_kwargs
         )
         if report is not None and on_report is not None:
             on_report(report)

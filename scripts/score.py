@@ -295,7 +295,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--prompt-file",      required=True, type=Path)
     p.add_argument("--context-file",     type=Path, default=None,
                    help="If supplied, used as the authoritative context section.")
-    p.add_argument("--user-query",       type=str, default=None,
+    p.add_argument("--user-query", "--query", dest="user_query", type=str, default=None,
                    help="The actual user query, for similarity-based 'used' approx. "
                         "If absent, derived from the last 200 chars of the prompt.")
     p.add_argument("--completion-file",  type=Path, default=None)

@@ -67,9 +67,11 @@ def optimize_agents(
     model_name: str = "gpt-4o",
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     **opt_kwargs: Any,
 ) -> OptimizeResult:
-    """Optimise role/goal/backstory on each agent in place."""
+    """Optimise role/goal/backstory on each agent in place.
+    Passing ``log`` logs the merged result tagged with source "crewai"."""
     reports: list[OptimizeResult] = []
     for a in agents:
         query = getattr(a, "goal", "") or getattr(a, "role", "")
@@ -77,7 +79,7 @@ def optimize_agents(
             a, _AGENT_FIELDS, query=query, model_name=model_name,
             enable=enable, compressor=compressor, opt_kwargs=opt_kwargs,
         ))
-    return _merge(reports, model_name)
+    return _merge(reports, model_name, log=log)
 
 
 def optimize_tasks(
@@ -86,9 +88,11 @@ def optimize_tasks(
     model_name: str = "gpt-4o",
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     **opt_kwargs: Any,
 ) -> OptimizeResult:
-    """Optimise description/expected_output on each task in place."""
+    """Optimise description/expected_output on each task in place.
+    Passing ``log`` logs the merged result tagged with source "crewai"."""
     reports: list[OptimizeResult] = []
     for t in tasks:
         query = getattr(t, "expected_output", "") or getattr(t, "description", "")[:200]
@@ -96,16 +100,27 @@ def optimize_tasks(
             t, _TASK_FIELDS, query=query, model_name=model_name,
             enable=enable, compressor=compressor, opt_kwargs=opt_kwargs,
         ))
-    return _merge(reports, model_name)
+    return _merge(reports, model_name, log=log)
 
 
-def _merge(reports: list[OptimizeResult], model: str) -> OptimizeResult:
+def _merge(reports: list[OptimizeResult], model: str, *, log=None) -> OptimizeResult:
     before = sum(r.tokens_before for r in reports)
     after = sum(r.tokens_after for r in reports)
     transforms = [t for r in reports for t in r.transforms]
     notes = sorted({n for r in reports for n in r.notes})
-    return OptimizeResult(
-        original=None, optimized=None, model=model,
+    orig = "\n\n".join(str(r.original) for r in reports if r.original)
+    opt = "\n\n".join(str(r.optimized) for r in reports if r.optimized)
+    merged = OptimizeResult(
+        original=orig, optimized=opt, model=model,
         tokens_before=before, tokens_after=after,
         transforms=transforms, notes=notes,
     )
+    if log is not None:
+        from ..logbook import resolve_logger
+        logger = resolve_logger(log)
+        if logger is not None:
+            try:
+                logger.record(merged, source="crewai")
+            except Exception:
+                pass
+    return merged

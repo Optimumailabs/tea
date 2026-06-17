@@ -39,11 +39,16 @@ def optimize_autogen_messages(
     model_name: str = "gpt-4o",
     enable: Optional[set[str]] = None,
     compressor: Optional[Compressor] = None,
+    log=None,
     **opt_kwargs: Any,
 ) -> tuple[list[dict], OptimizeResult]:
-    """Optimise a list of AutoGen message dicts. Returns (messages, report)."""
-    result = optimize_messages(
-        messages, model=model_name, enable=enable, compressor=compressor, **opt_kwargs
+    """Optimise a list of AutoGen message dicts. Returns (messages, report).
+    Passing ``log`` logs the call tagged with source "autogen"."""
+    from .. import optimize as _optimize
+
+    result = _optimize(
+        messages, model=model_name, enable=enable, compressor=compressor,
+        log=log, source="autogen", **opt_kwargs
     )
     return result.optimized, result
 
@@ -65,27 +70,31 @@ class TEAMessageTransform:
         enable: Optional[set[str]] = None,
         compressor: Optional[Compressor] = None,
         protect_last: int = 1,
+        log=None,
         **opt_kwargs: Any,
     ):
         self.model_name = model_name
         self.enable = enable
         self.compressor = compressor
         self.protect_last = max(0, protect_last)
+        self.log = log
         self.opt_kwargs = opt_kwargs
         self._last_saved = 0
 
     def apply_transform(self, messages: list[dict]) -> list[dict]:
         if not messages:
             return messages
+        from .. import optimize as _optimize
         # Protect the most recent N messages from any change.
         cut = len(messages) - self.protect_last if self.protect_last else len(messages)
         head, tail = messages[:cut], messages[cut:]
         if not head:
             self._last_saved = 0
             return messages
-        result = optimize_messages(
+        result = _optimize(
             head, model=self.model_name, enable=self.enable,
-            compressor=self.compressor, **self.opt_kwargs
+            compressor=self.compressor, log=self.log, source="autogen",
+            **self.opt_kwargs
         )
         self._last_saved = result.tokens_saved
         return list(result.optimized) + list(tail)

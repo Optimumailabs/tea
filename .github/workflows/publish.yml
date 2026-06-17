@@ -1,0 +1,84 @@
+name: Build and publish
+
+# Builds the wheel + sdist on every tag like v0.2.0, attaches them to the
+# GitHub Release, and (optionally) publishes to PyPI.
+#
+# Note on "GitHub Packages": GitHub Packages has first-class registries for
+# npm, Maven, NuGet, RubyGems, and containers, but NOT for plain PyPI-style
+# Python wheels. The practical equivalents for a Python package are:
+#   1. Attach the built wheel/sdist to the GitHub Release (done below). Users
+#      then install with:
+#         pip install https://github.com/Optimum-labs/Token-Efficiency-Agent/releases/download/v0.2.0/token_efficiency_agent-0.2.0-py3-none-any.whl
+#   2. Install straight from the repo at any time, no release needed:
+#         pip install "git+https://github.com/Optimum-labs/Token-Efficiency-Agent.git"
+#   3. Publish to PyPI (the publish-pypi job; needs the PYPI_API_TOKEN secret).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - name: Run the test suites
+        run: |
+          python -m pip install -e .
+          python -m tea._selftest
+          python -m tea._edgetest
+          python -m tea._logtest
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+  release-assets:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Attach wheel and sdist to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Publish to PyPI
+        # Requires a PYPI_API_TOKEN secret. Remove this job if you do not
+        # publish to PyPI.
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m pip install --upgrade twine
+          if [ -n "$TWINE_PASSWORD" ]; then
+            python -m twine upload dist/*
+          else
+            echo "PYPI_API_TOKEN not set; skipping PyPI upload."
+          fi
