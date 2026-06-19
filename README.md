@@ -14,7 +14,10 @@ adapters for **LangChain, CrewAI, AutoGen, the OpenAI SDK, and the Anthropic SDK
 
 - [Why TEA](#why-tea)
 - [Install](#install)
+- [Use as a Claude Code skill](#use-as-a-claude-code-skill)
+- [Use in VS Code](#use-in-vs-code)
 - [Quick start](#quick-start)
+- [Logging](#logging)
 - [Framework integrations](#framework-integrations)
 - [Transforms](#transforms)
 - [Command line](#command-line)
@@ -48,20 +51,49 @@ optional.
 pip install token-efficiency-agent
 
 # Straight from GitHub, no release needed
-pip install "git+https://github.com/Optimum-labs/Token-Efficiency-Agent.git"
+pip install "git+https://github.com/Optimumailabs/Token-Efficiency-Agent.git"
 
 # From a GitHub Release wheel
-pip install https://github.com/Optimum-labs/Token-Efficiency-Agent/releases/download/v0.2.0/token_efficiency_agent-0.2.0-py3-none-any.whl
+pip install https://github.com/Optimumailabs/Token-Efficiency-Agent/releases/download/v0.2.0/token_efficiency_agent-0.2.0-py3-none-any.whl
 
 # Optional extras
 pip install "token-efficiency-agent[all]"     # tiktoken (exact tokens) + psutil (RSS memory)
 ```
 
-VS Code users can also install the editor extension in
-[`vscode-extension/`](vscode-extension/), which wraps the package.
-
 Importing `tea` pulls in no framework; each adapter imports its own framework
 only when you use it.
+
+---
+
+## Use as a Claude Code skill
+
+This repo is also a Claude Code plugin, so you can install the skill straight
+from GitHub. In Claude Code, run these two commands:
+
+```text
+/plugin marketplace add Optimumailabs/Token-Efficiency-Agent
+/plugin install token-efficiency-agent@token-efficiency-agent
+```
+
+The first registers this repo as a plugin marketplace; the second installs the
+skill. After installing, ask Claude things like "score this prompt" or
+"optimise this prompt and show tokens saved", or call it directly with
+`/token-efficiency-agent:token-efficiency-agent`.
+
+Pasting the bare repo URL into the chat does not install anything on its own;
+Claude Code installs plugins through the two commands above. For the skill's
+optimise and score tools to run, install the Python package too
+(`pip install token-efficiency-agent`), or the skill falls back to the bundled
+scripts under the plugin root.
+
+---
+
+## Use in VS Code
+
+Install the editor extension in [`vscode-extension/`](vscode-extension/). It
+adds **TEA: Optimise selected prompt** and **TEA: Score selected prompt**
+commands that wrap the Python package. See the extension README for Marketplace
+publishing steps.
 
 ---
 
@@ -280,15 +312,24 @@ python -m tea._logtest       # logging checks
 ```
 .
 ├── pyproject.toml               pip-installable package metadata + console scripts
-├── SKILL.md                     Claude Code skill manifest
 ├── README.md                    this file
 ├── LICENSE                      MIT
+├── .claude-plugin/              Claude Code plugin manifests
+│   ├── plugin.json              plugin metadata
+│   └── marketplace.json         marketplace entry (install source)
+├── skills/
+│   └── token-efficiency-agent/
+│       └── SKILL.md             the Claude Code skill
 ├── .github/workflows/
-│   └── publish.yml              build, test, attach wheel to release, publish to PyPI
+│   └── publish.yml              build, test, release wheel, PyPI, VS Code
 ├── vscode-extension/            VS Code editor extension (wraps the package)
+│   ├── package.json             marketplace manifest
+│   ├── extension.js             commands
+│   ├── icon.png                 128x128 marketplace icon
+│   ├── .vscodeignore  CHANGELOG.md  LICENSE  README.md
 ├── scripts/
-│   ├── score.py                 measurement CLI (repo-local, used by the skill)
-│   └── optimize.py              optimisation CLI (repo-local, used by the skill)
+│   ├── score.py                 measurement CLI (used by the skill fallback)
+│   └── optimize.py              optimisation CLI (used by the skill fallback)
 └── tea/                         the importable package
     ├── __init__.py              public API: optimize(), score(), enable_logging()
     ├── optimizer.py             deterministic transforms + LLM hook

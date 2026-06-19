@@ -1,0 +1,14 @@
+{
+  "name": "token-efficiency-agent",
+  "owner": {
+    "name": "Optimum AI"
+  },
+  "description": "Token Efficiency Agent: measure and cut wasted tokens in LLM prompts.",
+  "plugins": [
+    {
+      "name": "token-efficiency-agent",
+      "source": "./",
+      "description": "Score and optimise LLM prompts to cut token waste, with per-prompt logging and adapters for OpenAI, Anthropic, LangChain, CrewAI, and AutoGen."
+    }
+  ]
+}

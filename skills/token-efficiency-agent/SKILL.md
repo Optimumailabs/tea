@@ -8,13 +8,25 @@ description: Token Efficiency Agent (TEA). Measures and reduces wasted tokens in
 TEA cuts the tokens an LLM prompt spends without changing what the model is
 asked to do. It has two modes.
 
-- **Measure** (`scripts/score.py`): score a prompt, do not change it.
-- **Optimise** (`scripts/optimize.py` or the `tea` package): rewrite the prompt
-  to spend fewer tokens, and report what changed.
+- **Measure**: score a prompt, do not change it.
+- **Optimise**: rewrite the prompt to spend fewer tokens, and report what
+  changed.
 
-The bundled `tea` package also plugs into LangChain, CrewAI, AutoGen, the
-OpenAI SDK, and the Anthropic SDK, so the same optimisation runs inside a
+The bundled `tea` Python package also plugs into LangChain, CrewAI, AutoGen,
+the OpenAI SDK, and the Anthropic SDK, so the same optimisation runs inside a
 real application, not just from this skill.
+
+## How to run the tools
+
+Two ways, in priority order:
+
+1. If the package is pip-installed, use the console commands `tea-optimize`
+   and `tea-score`. These are on PATH after `pip install token-efficiency-agent`.
+2. Otherwise run the bundled scripts with the plugin root, which Claude Code
+   exposes as the `CLAUDE_PLUGIN_ROOT` environment variable:
+   `python "$CLAUDE_PLUGIN_ROOT/scripts/optimize.py" ...`
+
+Both accept the same flags. Examples below show the console form first.
 
 ## When to use this skill
 
@@ -23,25 +35,27 @@ real application, not just from this skill.
   optimise mode.
 - "How do I add token optimisation to my LangChain / CrewAI / AutoGen app?" ->
   point the user at the matching integration (see the table below) and show the
-  three-line snippet.
+  short snippet.
 
 Do not invoke for general questions that merely mention prompts. This skill is
 for explicit measure or optimise requests.
 
 ## Measure mode
 
-Run the scorer and report the result. Always invoke the script, never
-reimplement the math.
+Run the scorer and report the result. Always invoke the tool, never reimplement
+the math.
 
 ```bash
-python product/skill/scripts/score.py \
+tea-score \
     --prompt-file /tmp/prompt.txt \
     --query "the user question" \
-    --quality 0.78 --quality-supplied \
+    --quality 0.78 \
     --model gpt-4o
+# or, without install:
+# python "$CLAUDE_PLUGIN_ROOT/scripts/score.py" --prompt-file /tmp/prompt.txt --query "..." --quality 0.78 --quality-supplied --model gpt-4o
 ```
 
-The script prints JSON with `tokens`, `score`, `cost`, `suggestions`, and
+The tool prints JSON with `tokens`, `score`, `cost`, `suggestions`, and
 `assumptions`. Render it as a short report: token breakdown, the composite
 score S(P), the per-request cost, and the top suggestions. Surface the
 `assumptions` so the reader knows which defaults were used.
@@ -50,27 +64,24 @@ score S(P), the per-request cost, and the top suggestions. Surface the
 
 ```bash
 # Safe transforms only (whitespace, dedupe, oversized few-shot pruning).
-python product/skill/scripts/optimize.py \
-    --prompt-file /tmp/prompt.txt \
-    --query "the user question" --model gpt-4o
+tea-optimize --prompt-file /tmp/prompt.txt --query "the user question" --model gpt-4o
 
 # Add relevance-based context dropping (needs the query).
-python product/skill/scripts/optimize.py \
-    --prompt-file /tmp/prompt.txt \
-    --query "the user question" --aggressive --model gpt-4o
+tea-optimize --prompt-file /tmp/prompt.txt --query "the user question" --aggressive
 
 # Optimise a chat-messages JSON file instead of a raw prompt.
-python product/skill/scripts/optimize.py \
-    --messages-file /tmp/chat.json --model gpt-4o
+tea-optimize --messages-file /tmp/chat.json --model gpt-4o
 
 # Log every optimised prompt to a directory (original, optimised, tokens
 # saved, memory, running ledger). Add --log with no value for the default dir,
 # or --log /path/to/dir for a specific one.
-python product/skill/scripts/optimize.py \
-    --prompt-file /tmp/prompt.txt --query "..." --log /tmp/tea_logs
+tea-optimize --prompt-file /tmp/prompt.txt --query "..." --log /tmp/tea_logs
+
+# Without install, swap the command for:
+# python "$CLAUDE_PLUGIN_ROOT/scripts/optimize.py" <same flags>
 ```
 
-The script prints a JSON report (`tokens_before`, `tokens_after`,
+The tool prints a JSON report (`tokens_before`, `tokens_after`,
 `tokens_saved`, `reduction_pct`, `transforms`, `notes`) and writes the
 optimised prompt to `--out-file` if given. Report the reduction and which
 transforms fired. If `exact_tokenizer` is false, mention that token counts are
@@ -90,7 +101,8 @@ What each transform does:
   common RAG failure of retrieving the same passage twice.
 - **few_shot**: prune the back half of an oversized few-shot block.
 - **drop_context** (aggressive only): drop context chunks whose lexical overlap
-  with the query is low. Never empties the context; always keeps the best chunk.
+  with the query is low. Never empties the context; always keeps the best chunk;
+  removes at most 70 per cent in one pass.
 - **compress** (package only): route the prompt through a caller-supplied LLM
   compressor. Guarded so a degenerate compressor output is rejected.
 
@@ -114,43 +126,29 @@ Direct API, no framework:
 
 ```python
 import tea
-
 result = tea.optimize(prompt, query="the user question", model="gpt-4o")
 print(result.optimized)      # the shorter prompt
 print(result.summary())      # what changed and how much was saved
-
-# Chat messages:
-result = tea.optimize(messages, model="gpt-4o")
-cheaper_messages = result.optimized
 ```
 
-Enable deeper compression by passing a compressor callable:
+Turn on logging for every call:
 
 ```python
-def my_compressor(text: str, target_ratio: float) -> str:
-    # call any model to shorten `text` to about target_ratio of its length
-    ...
-
-result = tea.optimize(
-    prompt, query=q, model="gpt-4o",
-    enable=tea.AGGRESSIVE_TRANSFORMS, compressor=my_compressor,
-)
+tea.enable_logging("tea_logs")          # or set the TEA_LOG_DIR env var
 ```
 
 ## Output guidelines
 
-- Numbers come from the script or the package. Never invent them.
+- Numbers come from the tool or the package. Never invent them.
 - If a transform saved 0 tokens, say so plainly; do not imply otherwise.
 - When the optimiser drops context, it preserves the highest-overlap chunk. Tell
   the user the optimiser will never empty the context, so meaning is retained.
-- If the script errors, surface the error verbatim and stop.
+- If the tool errors, surface the error verbatim and stop.
 
 ## Honest limits
 
 - Relevance scoring is lexical overlap, not real attention. It is a safe proxy
-  that occasionally keeps a chunk a true attention signal would drop. The
-  product brief, section 3.8, describes the attention and ablation path that
-  replaces this in later phases.
+  that occasionally keeps a chunk a true attention signal would drop.
 - Anthropic models have no public tokenizer, so their counts use the cl100k
   fallback and are approximate. Relative before/after comparisons stay valid.
 - The deterministic transforms are quality-safe by design. The LLM compressor
@@ -159,6 +157,5 @@ result = tea.optimize(
 
 ## Reference
 
-- Product brief: [`product/token_efficiency_agent.md`](../token_efficiency_agent.md)
-- Package README: [`README.md`](README.md)
-- Self-test: `python -m tea._selftest` from the `product/skill` directory.
+- Package README: repository root `README.md`.
+- Self-test: `python -m tea._selftest` from the repository root.

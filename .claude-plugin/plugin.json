@@ -1,0 +1,11 @@
+{
+  "name": "token-efficiency-agent",
+  "description": "Measure and cut wasted tokens in LLM prompts. Scores token efficiency and context utilisation, then optimises prompts with safe deterministic transforms plus an optional LLM compressor. Use it to score a prompt, optimise a prompt, or cut token waste.",
+  "version": "0.2.0",
+  "author": {
+    "name": "Optimum AI"
+  },
+  "homepage": "https://github.com/Optimumailabs/Token-Efficiency-Agent",
+  "repository": "https://github.com/Optimumailabs/Token-Efficiency-Agent",
+  "license": "MIT"
+}

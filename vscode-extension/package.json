@@ -4,12 +4,17 @@
   "description": "Optimise the selected prompt text and show tokens saved. Wraps the TEA Python package.",
   "version": "0.2.0",
   "publisher": "optimum-ai",
+  "icon": "icon.png",
   "engines": { "vscode": "^1.80.0" },
-  "categories": ["Other", "Machine Learning"],
+  "categories": ["AI", "Machine Learning", "Other"],
+  "keywords": ["llm", "tokens", "prompt", "optimization", "cost", "openai", "anthropic"],
+  "galleryBanner": { "color": "#1A5276", "theme": "dark" },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Optimum-labs/Token-Efficiency-Agent"
+    "url": "https://github.com/Optimumailabs/Token-Efficiency-Agent"
   },
+  "bugs": { "url": "https://github.com/Optimumailabs/Token-Efficiency-Agent/issues" },
+  "homepage": "https://github.com/Optimumailabs/Token-Efficiency-Agent#readme",
   "license": "MIT",
   "main": "./extension.js",
   "activationEvents": [],
@@ -24,6 +29,12 @@
         "title": "TEA: Score selected prompt"
       }
     ],
+    "menus": {
+      "editor/context": [
+        { "command": "tea.optimizeSelection", "when": "editorHasSelection", "group": "1_modification" },
+        { "command": "tea.scoreSelection", "when": "editorHasSelection", "group": "1_modification" }
+      ]
+    },
     "configuration": {
       "title": "Token Efficiency Agent",
       "properties": {
@@ -51,7 +62,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "echo 'no build step; plain JS'"
+    "vscode:prepublish": "echo 'no build step; plain JS'",
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",

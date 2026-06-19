@@ -30,8 +30,8 @@ all = ["tiktoken>=0.5", "psutil>=5.9"]
 dev = ["pytest>=7", "tiktoken>=0.5", "psutil>=5.9"]
 
 [project.urls]
-Homepage = "https://github.com/Optimum-labs/Token-Efficiency-Agent"
-Repository = "https://github.com/Optimum-labs/Token-Efficiency-Agent"
+Homepage = "https://github.com/Optimumailabs/Token-Efficiency-Agent"
+Repository = "https://github.com/Optimumailabs/Token-Efficiency-Agent"
 
 [project.scripts]
 tea-optimize = "tea.cli:optimize_main"

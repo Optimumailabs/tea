@@ -8,9 +8,9 @@ name: Build and publish
 # Python wheels. The practical equivalents for a Python package are:
 #   1. Attach the built wheel/sdist to the GitHub Release (done below). Users
 #      then install with:
-#         pip install https://github.com/Optimum-labs/Token-Efficiency-Agent/releases/download/v0.2.0/token_efficiency_agent-0.2.0-py3-none-any.whl
+#         pip install https://github.com/Optimumailabs/Token-Efficiency-Agent/releases/download/v0.2.0/token_efficiency_agent-0.2.0-py3-none-any.whl
 #   2. Install straight from the repo at any time, no release needed:
-#         pip install "git+https://github.com/Optimum-labs/Token-Efficiency-Agent.git"
+#         pip install "git+https://github.com/Optimumailabs/Token-Efficiency-Agent.git"
 #   3. Publish to PyPI (the publish-pypi job; needs the PYPI_API_TOKEN secret).
 
 on:
@@ -82,3 +82,36 @@ jobs:
           else
             echo "PYPI_API_TOKEN not set; skipping PyPI upload."
           fi
+
+  publish-vscode:
+    # Publishes the VS Code extension to the Marketplace on a tag.
+    # Requires a VSCE_PAT secret (Azure DevOps PAT with Marketplace > Manage).
+    # Skips cleanly when the secret is not set.
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+      - name: Package and publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          vsce package
+          if [ -n "$VSCE_PAT" ]; then
+            vsce publish -p "$VSCE_PAT"
+          else
+            echo "VSCE_PAT not set; packaged the .vsix but skipped publishing."
+          fi
+      - name: Upload the .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: vscode-extension/*.vsix
